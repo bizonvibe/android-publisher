@@ -1,0 +1,80 @@
+{
+  "live_calibrated": false,
+  "notes": "EXAMPLE ONLY. Inspect your own UI hierarchy; IDs and features vary by app/account. Empty selectors intentionally stop unsupported flows. Use one alternative per matched node.",
+  "blockers": [
+    "captcha",
+    "confirm your identity",
+    "challenge_required",
+    "suspicious activity",
+    "account has been disabled",
+    "try again later",
+    "we restrict certain activity",
+    "подтвердите личность",
+    "подозрительная активность",
+    "аккаунт заблокирован",
+    "попробуйте позже",
+    "enter security code",
+    "введите код",
+    "log in",
+    "войти"
+  ],
+  "selectors": {
+    "profile_tab": [
+      {
+        "resourceId": "com.instagram.android:id/profile_tab"
+      }
+    ],
+    "account_username": [
+      {
+        "resourceId": "com.instagram.android:id/action_bar_title"
+      }
+    ],
+    "create": [
+      {
+        "description": "Create"
+      }
+    ],
+    "reel": [
+      {
+        "text": "Reel"
+      }
+    ],
+    "gallery": [
+      {
+        "description": "Open gallery"
+      }
+    ],
+    "gallery_next": [
+      {
+        "text": "Next"
+      }
+    ],
+    "editor_next": [
+      {
+        "text": "Next"
+      }
+    ],
+    "caption": [
+      {
+        "resourceId": "com.instagram.android:id/caption_text_view"
+      }
+    ],
+    "trial_toggle": [],
+    "automatic_share_toggle": [],
+    "trial_mode_marker": [],
+    "normal_mode_marker": [],
+    "publish": [
+      {
+        "text": "Share"
+      }
+    ],
+    "publication_success": [],
+    "published_permalink": [],
+    "existing_trial_marker": [],
+    "trial_options": [],
+    "share_everyone_prepare": [],
+    "share_everyone_confirm": [],
+    "composer_account": [],
+    "existing_reel_owner": []
+  }
+}
