@@ -179,3 +179,17 @@ def test_owner_decline_leaves_no_submit_reservation(store, settings, storage, jo
     assert row["submitted"] == 0
     assert android.submissions == 0
     assert not store.duplicate(job)
+
+
+def test_cli_help_works_with_windows_cp1252_redirected_console():
+    import os
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "android_publisher", "--help"],
+        capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+    )
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    assert "Мастер" in result.stdout.decode("utf-8")

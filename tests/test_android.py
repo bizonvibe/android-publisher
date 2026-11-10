@@ -13,7 +13,12 @@ class Node:
 
     @property
     def info(self):
-        return {"checkable": True, "checked": self.checked}
+        return {
+            "checkable": True,
+            "checked": self.checked,
+            "enabled": True,
+            "bounds": {"left": 1, "top": 1, "right": 5, "bottom": 5},
+        }
 
     def click(self):
         self.checked = not self.checked
@@ -36,6 +41,7 @@ class Device:
 def adapter(settings, device):
     a = Android(settings)
     a.d = device
+    a.adb = lambda *args: device.node.click()
     a.profile = {"blockers": ["captcha"], "selectors": {"switch": [{"text": "Trial"}]}}
     return a
 
@@ -146,3 +152,20 @@ def test_owner_copied_link_can_drop_tracking_but_never_accept_other_hosts():
     )
     assert canonical_permalink("https://evil.example/reel/Abc123/?igsh=tracking") is None
     assert canonical_permalink("https://instagram.com@evil.example/reel/Abc123/") is None
+
+
+def test_navigation_tap_is_not_repeated_by_uiautomator(settings):
+    from android_publisher.models import Retryable
+
+    node = Node()
+    a = adapter(settings, Device(node))
+    calls = []
+
+    def adb(*args):
+        calls.append(args)
+        raise Retryable("lost navigation response")
+
+    a.adb = adb
+    with pytest.raises(Retryable):
+        a.click("switch")
+    assert len(calls) == 1

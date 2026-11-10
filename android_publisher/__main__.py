@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+import sys
 from pathlib import Path
 
 from .config import load_settings
@@ -11,6 +12,10 @@ from .models import Mode, Stop
 
 
 def main(argv=None):
+    # Windows redirected consoles may default to cp1252, which cannot encode Russian.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(
         description="Windows → Android Instagram Reels. LIVE по умолчанию выключен."
     )

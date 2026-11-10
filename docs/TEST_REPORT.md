@@ -2,10 +2,10 @@
 
 Локально, Linux/Python 3.12:
 
-- `python -m pytest -q`: **92 passed**. Один upstream Starlette/httpx deprecation warning, не ошибка.
+- `python -m pytest -q`: **94 passed**. Один upstream Starlette/httpx deprecation warning, не ошибка.
 - `python -m ruff check .`: passed.
 - `git diff --check`: passed.
-- `python -m android_publisher --help`: passed.
+- `python -m android_publisher --help`: passed. Проверка подпроцесса с `PYTHONIOENCODING=cp1252` защищает русский вывод CLI на Windows от UnicodeEncodeError.
 - Read-only `diagnose()` в текущем облаке корректно вернул `ADB_UNAVAILABLE` и `R2_NOT_CONFIGURED`, не сообщил ложный успех.
 
 CI проверяет Ubuntu/Windows с Python3.11/3.12: те же тесты, линтер, CLI smoke; на Windows дополнительно разбирает PowerShell launcher без исполнения настройки/публикации. Результаты запусков смотрите в PR/Actions.

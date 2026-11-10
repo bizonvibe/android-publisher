@@ -99,14 +99,7 @@ class Android:
             return
         if obj is None:
             raise Stop("UI_NOT_FOUND:" + name)
-        label = (
-            str(obj.info.get("text", "") or obj.info.get("contentDescription", ""))
-            .strip()
-            .casefold()
-        )
-        if label in {"share", "publish", "share now", "поделиться", "опубликовать"}:
-            raise Stop("FINAL_CONTROL_AT_PREPARATION")
-        obj.click()
+        self.tap_once(obj)
         time.sleep(0.7)
         self.guard()
         self.checkpoint("after-" + name)
@@ -133,7 +126,7 @@ class Android:
         if not info.get("checkable") or "checked" not in info:
             raise Stop("UNVERIFIABLE_TOGGLE:" + name)
         if info["checked"] != desired:
-            obj.click()
+            self.tap_once(obj)
             time.sleep(0.5)
         self.guard()
         if self.selector(name).info.get("checked") != desired:
@@ -199,7 +192,7 @@ class Android:
             media = self.d(description=Path(remote).name)
             if not media.wait(timeout=15) or media.count != 1:
                 raise Stop("EXACT_MEDIA_NOT_FOUND")
-            media.click()
+            self.tap_once(media)
             self.click("gallery_next")
         self.click("editor_next")
         self.wait("caption").set_text(job.caption)
@@ -229,17 +222,28 @@ class Android:
         if self.selector("publication_success", required=False) is not None:
             raise Stop("STALE_SUCCESS_MARKER")
         # Caller must persist its irreversible barrier BEFORE entering this method.
-        # UIAutomator2 can retry a failed JSON-RPC click after reconnecting. Use
-        # its unique selector only to read bounds, then ONE non-retried ADB tap.
-        # These are current element bounds, never hardcoded screen coordinates.
-        info = self.selector(prepared["final_action"]).info
+        self.tap_once(self.selector(prepared["final_action"]), final=True)
+
+    def tap_once(self, obj, *, final=False):
+        # A repeated navigation RPC might hit Share after Next changed the screen.
+        info = obj.info
+        label = str(info.get("text", "") or info.get("contentDescription", "")).strip().casefold()
+        if not final and label in {
+            "share",
+            "publish",
+            "post",
+            "share now",
+            "поделиться",
+            "опубликовать",
+        }:
+            raise Stop("FINAL_CONTROL_AT_PREPARATION")
         bounds = info.get("bounds", {})
         if not info.get("enabled") or not all(
             k in bounds for k in ("left", "top", "right", "bottom")
         ):
-            raise Stop("INVALID_FINAL_CONTROL")
+            raise Stop("INVALID_FINAL_CONTROL" if final else "INVALID_UI_CONTROL")
         if bounds["right"] <= bounds["left"] or bounds["bottom"] <= bounds["top"]:
-            raise Stop("INVALID_FINAL_CONTROL")
+            raise Stop("INVALID_FINAL_CONTROL" if final else "INVALID_UI_CONTROL")
         self.guard()
         self.adb(
             "shell",
