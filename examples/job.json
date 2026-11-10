@@ -1,0 +1,10 @@
+{
+  "video_id": "reel-001",
+  "r2_object_key": "reels/reel-001/video.mp4",
+  "account_id": "your_instagram_username",
+  "caption": "Описание ролика #reels #bizonvibe",
+  "publication_mode": "TRIAL_REEL",
+  "scheduled_at": "2026-11-10T18:00:00+03:00",
+  "idempotency_key": "reel-001-trial-dry-1",
+  "execution_mode": "DRY_RUN"
+}
