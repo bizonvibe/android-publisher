@@ -1,17 +1,14 @@
 import asyncio
-import hashlib
 import logging
-import tempfile
 from contextlib import asynccontextmanager
-from pathlib import Path
 from secrets import compare_digest
 
-import portalocker
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .android import Android, MockAndroid
-from .config import Settings
+from .config import load_settings
+from .locking import device_session
 from .models import Execution, Job, Stop
 from .storage import R2
 from .store import Store
@@ -19,7 +16,7 @@ from .worker import Worker
 
 
 def create_app(settings=None, android=None, storage=None):
-    settings = settings or Settings()
+    settings = settings or load_settings()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     store = Store(settings.data_dir / "publisher.sqlite3")
     if android is None:
@@ -35,21 +32,7 @@ def create_app(settings=None, android=None, storage=None):
 
     @asynccontextmanager
     async def lifespan(app):
-        # Cross-process lock for the whole lifetime, including recovery. On Windows
-        # use one data directory per device, and never run another UI automation tool.
-        lock = portalocker.Lock(str(settings.data_dir / "device.lock"), timeout=0)
-        device_key = hashlib.sha256(settings.device_serial.encode()).hexdigest()
-        device_lock = portalocker.Lock(
-            str(Path(tempfile.gettempdir()) / ("android-publisher-" + device_key + ".lock")),
-            timeout=0,
-        )
-        lock.acquire()
-        try:
-            device_lock.acquire()
-        except Exception:
-            lock.release()
-            raise
-        try:
+        with device_session(settings):
             store.recover(settings.max_attempts)
             app.state.worker_running = True
 
@@ -70,9 +53,6 @@ def create_app(settings=None, android=None, storage=None):
                 app.state.worker_running = False
                 # Do not cancel to_thread: release device lock only after it stops.
                 await task
-        finally:
-            device_lock.release()
-            lock.release()
 
     app = FastAPI(title="Android Instagram Publisher", lifespan=lifespan)
     app.state.store, app.state.worker = store, worker

@@ -6,3 +6,6 @@ __pycache__/
 .env
 data/
 *.egg-info/
+publisher.local.json
+profiles/*local*.json
+*.log

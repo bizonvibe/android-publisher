@@ -135,3 +135,14 @@ def test_final_adb_error_is_not_retried(settings):
     with pytest.raises(Retryable):
         a.submit({"final_action": "publish"})
     assert len(calls) == 1
+
+
+def test_owner_copied_link_can_drop_tracking_but_never_accept_other_hosts():
+    from android_publisher.android import canonical_permalink
+
+    assert (
+        canonical_permalink("https://www.instagram.com/reel/Abc123/?igsh=tracking")
+        == "https://www.instagram.com/reel/Abc123/"
+    )
+    assert canonical_permalink("https://evil.example/reel/Abc123/?igsh=tracking") is None
+    assert canonical_permalink("https://instagram.com@evil.example/reel/Abc123/") is None

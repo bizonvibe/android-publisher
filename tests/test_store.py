@@ -49,3 +49,16 @@ def test_restarts_do_not_allow_unbounded_attempts(store, job):
     assert store.get(jid)["status"] == "FAILED"
     assert store.get(jid)["error"] == "ATTEMPTS_EXHAUSTED"
     assert store.claim() is None
+
+
+def test_idempotency_accepts_old_payload_defaults_after_schema_upgrade(store, job):
+    import json
+
+    jid = store.create(job)["id"]
+    # v0.1 stored payloads do not have fields introduced in this PR.
+    old = job.model_dump(mode="json", exclude={"r2_manifest_key", "owner_confirmation_required"})
+    with store.db() as db:
+        db.execute(
+            "UPDATE jobs SET payload=?,fingerprint='legacy-v0.1' WHERE id=?", (json.dumps(old), jid)
+        )
+    assert store.create(job)["id"] == jid

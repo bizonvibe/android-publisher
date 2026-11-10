@@ -21,6 +21,7 @@ class Execution(StrEnum):
 class Job(BaseModel):
     video_id: Identifier
     r2_object_key: str = Field(min_length=1, max_length=1024)
+    r2_manifest_key: str | None = Field(default=None, min_length=1, max_length=1024)
     account_id: Identifier  # Instagram username, not Graph API numeric ID
     caption: str = Field(default="", max_length=2200)
     publication_mode: Mode
@@ -28,6 +29,7 @@ class Job(BaseModel):
     idempotency_key: str = Field(min_length=1, max_length=200)
     execution_mode: Execution = Execution.DRY_RUN
     source_job_id: str | None = None
+    owner_confirmation_required: bool = False
 
     @field_validator("scheduled_at")
     @classmethod
@@ -35,6 +37,15 @@ class Job(BaseModel):
         if value.tzinfo is None:
             raise ValueError("scheduled_at requires timezone")
         return value.astimezone(UTC)
+
+    @field_validator("r2_manifest_key")
+    @classmethod
+    def manifest_key(cls, value):
+        if value is not None and (
+            value.startswith("/") or ".." in value.split("/") or not value.endswith(".json")
+        ):
+            raise ValueError("Expected relative JSON manifest key")
+        return value
 
     @field_validator("r2_object_key")
     @classmethod

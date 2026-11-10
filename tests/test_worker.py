@@ -164,3 +164,16 @@ def test_unavailable_trial_status(store, settings, storage, job):
     result, _, android = run(store, settings, storage, job, MockAndroid(trial=False))
     assert result["status"] == "FEATURE_UNAVAILABLE"
     assert android.submissions == 0
+
+
+def test_readable_stop_report_with_last_step(store, settings, storage, job):
+    import json
+
+    android = MockAndroid(failure=Stop("UI_NOT_FOUND:caption"))
+    android.last_step = "caption"
+    result, _, _ = run(store, settings, storage, job, android)
+    path = settings.data_dir / "jobs" / result["id"] / "stop.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+    assert report["step"] == "caption"
+    assert "calibrate --step caption" in report["fix"]
+    assert report["submitted"] is False

@@ -20,3 +20,45 @@ class Settings(BaseSettings):
     r2_access_key_id: str = ""
     r2_secret_access_key: str = ""
     r2_bucket: str = "content-factory-videos"
+
+
+# Only nonsecret settings may be persisted by setup. LIVE is ENV-ONLY.
+LOCAL_FIELDS = {
+    "data_dir",
+    "device_serial",
+    "adb_path",
+    "selector_profile",
+    "r2_endpoint_url",
+    "r2_bucket",
+}
+
+
+def load_settings(path=Path("publisher.local.json")):
+    import json
+    import os
+
+    raw = json.loads(Path(path).read_text(encoding="utf-8")) if Path(path).exists() else {}
+    values = {
+        key: value
+        for key, value in raw.items()
+        if key in LOCAL_FIELDS and "PUBLISHER_" + key.upper() not in os.environ
+    }
+    # Match the producer's ENV names, but keep PUBLISHER_* as the highest priority.
+    aliases = {
+        "r2_access_key_id": "R2_ACCESS_KEY_ID",
+        "r2_secret_access_key": "R2_SECRET_ACCESS_KEY",
+        "r2_bucket": "R2_BUCKET_NAME",
+        "r2_endpoint_url": "R2_ENDPOINT",
+    }
+    for key, env in aliases.items():
+        if "PUBLISHER_" + key.upper() not in os.environ and os.environ.get(env):
+            values[key] = os.environ[env]
+    if (
+        "r2_endpoint_url" not in values
+        and not os.environ.get("PUBLISHER_R2_ENDPOINT_URL")
+        and os.environ.get("R2_ACCOUNT_ID")
+    ):
+        values["r2_endpoint_url"] = (
+            "https://" + os.environ["R2_ACCOUNT_ID"] + ".r2.cloudflarestorage.com"
+        )
+    return Settings(**values)

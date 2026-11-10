@@ -29,6 +29,10 @@ class Store:
                     id INTEGER PRIMARY KEY CHECK(id=1), paused INTEGER NOT NULL DEFAULT 0
                 );
                 INSERT OR IGNORE INTO device_state VALUES(1,0);
+                CREATE TABLE IF NOT EXISTS publication_hashes (
+                    account TEXT NOT NULL, sha256 TEXT NOT NULL, job_id TEXT NOT NULL,
+                    PRIMARY KEY(account, sha256)
+                );
                 CREATE TABLE IF NOT EXISTS publications (
                     account TEXT NOT NULL, video TEXT NOT NULL, job_id TEXT NOT NULL,
                     PRIMARY KEY(account, video)
@@ -56,7 +60,10 @@ class Store:
             db.execute("BEGIN IMMEDIATE")
             old = db.execute("SELECT * FROM jobs WHERE idem=?", (job.idempotency_key,)).fetchone()
             if old:
-                if old["fingerprint"] != fingerprint:
+                previous = Job.model_validate_json(old["payload"]).model_dump(mode="json")
+                if "scheduled_at" not in job.model_fields_set:
+                    previous.pop("scheduled_at")
+                if previous != canonical:
                     raise Stop("IDEMPOTENCY_CONFLICT")
                 return self.decode(old)
             jid = str(uuid.uuid4())
@@ -110,13 +117,14 @@ class Store:
                 (now(), max_attempts),
             )
 
-    def claim(self):
+    def claim(self, jid=None):
         with self.db() as db:
             db.execute("BEGIN IMMEDIATE")
             if db.execute("SELECT paused FROM device_state WHERE id=1").fetchone()[0]:
                 return None
             row = db.execute(
-                "SELECT * FROM jobs WHERE status='QUEUED' AND due<=? ORDER BY due LIMIT 1", (now(),)
+                "SELECT * FROM jobs WHERE status='QUEUED' AND due<=? AND (? IS NULL OR id=?) ORDER BY due LIMIT 1",
+                (now(), jid, jid),
             ).fetchone()
             if row is None:
                 return None
@@ -126,7 +134,7 @@ class Store:
             )
         return self.get(row["id"])
 
-    def barrier(self, jid, job):
+    def barrier(self, jid, job, sha256=None):
         with self.db() as db:
             db.execute("BEGIN IMMEDIATE")
             if job.publication_mode != "SHARE_TRIAL_TO_EVERYONE":
@@ -137,6 +145,14 @@ class Store:
                     )
                 except sqlite3.IntegrityError:
                     raise Stop("DUPLICATE_PUBLICATION") from None
+                if sha256:
+                    try:
+                        db.execute(
+                            "INSERT INTO publication_hashes VALUES(?,?,?)",
+                            (job.account_id.lower(), sha256, jid),
+                        )
+                    except sqlite3.IntegrityError:
+                        raise Stop("DUPLICATE_PUBLICATION") from None
             else:
                 # Only one promotion of the same trial, even across idempotency keys.
                 try:
@@ -173,3 +189,21 @@ class Store:
     def paused(self):
         with self.db() as db:
             return bool(db.execute("SELECT paused FROM device_state WHERE id=1").fetchone()[0])
+
+    def duplicate(self, job, sha256=None):
+        if job.publication_mode == "SHARE_TRIAL_TO_EVERYONE":
+            return False
+        with self.db() as db:
+            return bool(
+                db.execute(
+                    "SELECT 1 FROM publications WHERE account=? AND video=?",
+                    (job.account_id.lower(), job.video_id),
+                ).fetchone()
+                or (
+                    sha256
+                    and db.execute(
+                        "SELECT 1 FROM publication_hashes WHERE account=? AND sha256=?",
+                        (job.account_id.lower(), sha256),
+                    ).fetchone()
+                )
+            )

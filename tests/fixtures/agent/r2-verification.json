@@ -1,0 +1,51 @@
+{
+  "status": "remote_verified",
+  "manifest_key": "reels/ru/reel-20261109-92645916/manifest.json",
+  "verified_objects": 7,
+  "language": "ru",
+  "channel": "Bizon Vibe",
+  "assets": [
+    {
+      "role": "video",
+      "key": "reels/ru/reel-20261109-92645916/video.mp4",
+      "bytes": 5419698,
+      "sha256": "5de5a375c395b646fd372e7dfaf85afc71805eddffb390b11cb1807f687659e0",
+      "content_type": "video/mp4"
+    },
+    {
+      "role": "cover",
+      "key": "reels/ru/reel-20261109-92645916/cover.png",
+      "bytes": 660676,
+      "sha256": "25c86b28c6501d09f53c93769fb31ddbd55b64f34be1b5910b35f99b7d415fdc",
+      "content_type": "image/png"
+    },
+    {
+      "role": "subtitles",
+      "key": "reels/ru/reel-20261109-92645916/captions.ru.srt",
+      "bytes": 1849,
+      "sha256": "a9ed1f5d142cf69ce6fec25b6ea7411a0bbcfe98d491789d5a7e756eb1052a70",
+      "content_type": "application/x-subrip; charset=utf-8"
+    },
+    {
+      "role": "description",
+      "key": "reels/ru/reel-20261109-92645916/description.ru.txt",
+      "bytes": 484,
+      "sha256": "35d836a62859db40dadb685448acc8c1b01c26f2250ac612705d00291cbd4677",
+      "content_type": "text/plain; charset=utf-8"
+    },
+    {
+      "role": "qa",
+      "key": "reels/ru/reel-20261109-92645916/qa.json",
+      "bytes": 765,
+      "sha256": "0c0f09c324d0ff88b818b5e6690b555c544b9032a12f913613dc45fe832aa679",
+      "content_type": "application/json; charset=utf-8"
+    },
+    {
+      "role": "scenario",
+      "key": "reels/ru/reel-20261109-92645916/scenario.ru.json",
+      "bytes": 6892,
+      "sha256": "e943642857c2b18a41b8d2f8805223212acafbe31ee87ae180adad03c1641e63",
+      "content_type": "application/json; charset=utf-8"
+    }
+  ]
+}

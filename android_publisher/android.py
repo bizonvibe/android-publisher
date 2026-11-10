@@ -1,11 +1,13 @@
+import hashlib
 import json
 import re
 import subprocess
 import time
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from .models import Mode, Retryable, Stop
+from .selectors import resolve
 
 PACKAGE = "com.instagram.android"
 
@@ -17,6 +19,9 @@ class Android:
         self.settings = settings
         self.d = None
         self.profile = json.loads(settings.selector_profile.read_text(encoding="utf-8"))
+        self.trace_dir = None
+        self.last_step = "initialization"
+        self.trace_counter = 0
 
     def adb(self, *args):
         try:
@@ -63,22 +68,10 @@ class Android:
         alternatives = self.profile.get("selectors", {}).get(name, [])
         matches = []
         for selector in alternatives:
-            if not selector or any(
-                k
-                not in {
-                    "resourceId",
-                    "text",
-                    "description",
-                    "className",
-                    "textMatches",
-                    "descriptionMatches",
-                    "checked",
-                    "checkable",
-                }
-                for k in selector
-            ):
-                raise Stop("INVALID_SELECTOR_PROFILE")
-            obj = self.d(**selector)
+            try:
+                obj = resolve(self.d, selector)
+            except ValueError:
+                raise Stop("INVALID_SELECTOR_PROFILE") from None
             if obj.exists:
                 if obj.count != 1:
                     raise Stop("AMBIGUOUS_UI:" + name)
@@ -92,9 +85,31 @@ class Android:
         return matches[0]
 
     def click(self, name):
-        self.selector(name).click()
+        self.checkpoint("before-" + name)
+        if name in self.profile.get("skipped_steps", []) and name in {
+            "reel",
+            "editor_next",
+            "gallery_next",
+            "create",
+            "gallery",
+        }:
+            return
+        obj = self.selector(name)
+        if obj is None and name in self.profile.get("skipped_steps", []):
+            return
+        if obj is None:
+            raise Stop("UI_NOT_FOUND:" + name)
+        label = (
+            str(obj.info.get("text", "") or obj.info.get("contentDescription", ""))
+            .strip()
+            .casefold()
+        )
+        if label in {"share", "publish", "share now", "поделиться", "опубликовать"}:
+            raise Stop("FINAL_CONTROL_AT_PREPARATION")
+        obj.click()
         time.sleep(0.7)
         self.guard()
+        self.checkpoint("after-" + name)
 
     def wait(self, name, seconds=15):
         deadline = time.monotonic() + seconds
@@ -112,6 +127,7 @@ class Android:
             raise Stop("ACCOUNT_MISMATCH")
 
     def toggle(self, name, desired):
+        self.checkpoint("toggle-" + name)
         obj = self.selector(name)
         info = obj.info
         if not info.get("checkable") or "checked" not in info:
@@ -126,10 +142,16 @@ class Android:
     def prepare(self, job, video, source=None):
         self.connect()
         self.account(job.account_id)
-        if job.execution_mode == "LIVE" and self.profile.get("live_calibrated") is not True:
+        if (
+            job.execution_mode == "LIVE"
+            and not getattr(self, "owner_session", False)
+            and self.profile.get("live_calibrated") is not True
+        ):
             raise Stop("PROFILE_NOT_CALIBRATED_FOR_LIVE")
-        if job.execution_mode == "LIVE" and not self.profile.get("selectors", {}).get(
-            "publication_success"
+        if (
+            job.execution_mode == "LIVE"
+            and not getattr(self, "owner_session", False)
+            and not self.profile.get("selectors", {}).get("publication_success")
         ):
             raise Stop("SUCCESS_SELECTOR_REQUIRED")
         if job.publication_mode == Mode.SHARE_TRIAL_TO_EVERYONE:
@@ -155,6 +177,7 @@ class Android:
         remote = "/sdcard/Movies/Publisher/" + video.parent.name + ".mp4"
         self.adb("shell", "mkdir", "-p", "/sdcard/Movies/Publisher")
         self.adb("push", str(video), remote)
+        self.verify_remote(video, remote)
         self.adb(
             "shell",
             "am",
@@ -164,18 +187,25 @@ class Android:
             "-d",
             "file://" + remote,
         )
-        self.click("create")
-        self.click("reel")
-        self.click("gallery")
-        # Select exact filename, never newest thumbnail: stale gallery content is unsafe.
-        self.guard()
-        media = self.d(description=Path(remote).name)
-        if not media.wait(timeout=15) or media.count != 1:
-            raise Stop("EXACT_MEDIA_NOT_FOUND")
-        media.click()
-        self.click("gallery_next")
+        if self.profile.get("import_method") == "share_intent":
+            self.share_video(remote)
+            self.click("reel")
+        else:
+            self.click("create")
+            self.click("reel")
+            self.click("gallery")
+            # Select exact filename, never newest thumbnail: stale gallery content is unsafe.
+            self.guard()
+            media = self.d(description=Path(remote).name)
+            if not media.wait(timeout=15) or media.count != 1:
+                raise Stop("EXACT_MEDIA_NOT_FOUND")
+            media.click()
+            self.click("gallery_next")
         self.click("editor_next")
         self.wait("caption").set_text(job.caption)
+        if self.wait("caption").get_text() != job.caption:
+            raise Stop("CAPTION_MISMATCH")
+        self.checkpoint("caption-entered")
         self.guard()
         available = self.selector("trial_toggle", required=False) is not None
         if job.publication_mode == Mode.TRIAL_REEL:
@@ -189,15 +219,13 @@ class Android:
             if available:
                 self.toggle("trial_toggle", False)
             self.wait("normal_mode_marker")
-        if (
-            self.wait("composer_account").get_text().strip().lstrip("@").casefold()
-            != job.account_id.casefold()
-        ):
-            raise Stop("ACCOUNT_MISMATCH")
+        self.confirm_composer_account(job.account_id)
         self.wait("publish")
-        return {"trial_available": available, "final_action": "publish"}
+        self.checkpoint("ready-before-final")
+        return {"trial_available": available, "final_action": "publish", **self.identity()}
 
-    def submit(self, prepared):
+    def tap_final(self, prepared):
+        self.last_step = "final-confirmation"
         if self.selector("publication_success", required=False) is not None:
             raise Stop("STALE_SUCCESS_MARKER")
         # Caller must persist its irreversible barrier BEFORE entering this method.
@@ -220,12 +248,95 @@ class Android:
             str((bounds["left"] + bounds["right"]) // 2),
             str((bounds["top"] + bounds["bottom"]) // 2),
         )
+
+    def submit(self, prepared):
+        self.tap_final(prepared)
         self.wait("publication_success", seconds=60)
         # Toast/feed navigation alone is deliberately insufficient; profile must select
         # an explicit success confirmation from this submission.
         link = self.selector("published_permalink", required=False)
         permalink = link.get_text().strip() if link is not None else None
-        return {"verified": True, "permalink": permalink if valid_permalink(permalink) else None}
+        return {"verified": True, "permalink": canonical_permalink(permalink)}
+
+    def confirm_composer_account(self, expected):
+        if (
+            self.wait("composer_account").get_text().strip().lstrip("@").casefold()
+            != expected.casefold()
+        ):
+            raise Stop("ACCOUNT_MISMATCH")
+
+    def identity(self):
+        # Binding DRY_RUN to the phone, Instagram version and exact saved profile.
+        raw = self.settings.selector_profile.read_bytes()
+        version = self.d.app_info(PACKAGE).get("versionName", "")
+        return {
+            "device_serial": self.settings.device_serial,
+            "app_version": version,
+            "profile_sha256": hashlib.sha256(raw).hexdigest(),
+        }
+
+    def verify_remote(self, video, remote):
+        with video.open("rb") as stream:
+            expected = hashlib.file_digest(stream, "sha256").hexdigest()
+        actual = self.adb("shell", "sha256sum", remote).split()
+        if not actual or actual[0].lower() != expected:
+            raise Stop("DEVICE_CHECKSUM_MISMATCH")
+        self.checkpoint("phone-sha256-verified")
+
+    def share_video(self, remote):
+        # Use Android's content URI grant rather than guessing the newest gallery thumbnail.
+        filename = Path(remote).name
+        deadline = time.monotonic() + 15
+        ids = []
+        while time.monotonic() < deadline:
+            output = self.adb(
+                "shell",
+                "content",
+                "query",
+                "--uri",
+                "content://media/external/video/media",
+                "--projection",
+                "_id",
+                "--where",
+                f"\"_display_name='{filename}'\"",
+            )
+            ids = re.findall(r"\b_id=(\d+)", output)
+            if ids:
+                break
+            time.sleep(0.5)
+        if len(ids) != 1:
+            raise Stop("MEDIASTORE_NOT_FOUND")
+        uri = "content://media/external/video/media/" + ids[0]
+        self.checkpoint("media-import")
+        self.adb(
+            "shell",
+            "am",
+            "start",
+            "-a",
+            "android.intent.action.SEND",
+            "-t",
+            "video/mp4",
+            "--eu",
+            "android.intent.extra.STREAM",
+            uri,
+            "--grant-read-uri-permission",
+            "-p",
+            PACKAGE,
+        )
+        time.sleep(1)
+        self.guard()
+
+    def set_artifact_dir(self, directory):
+        self.trace_dir = directory
+        self.trace_counter = 0
+
+    def checkpoint(self, label):
+        self.last_step = label
+        if self.trace_dir is not None:
+            self.trace_counter += 1
+            directory = self.trace_dir / "steps" / f"{self.trace_counter:03d}-{label}"
+            directory.mkdir(parents=True, exist_ok=True)
+            self.evidence(directory)
 
     def evidence(self, directory):
         artifacts = []
@@ -257,6 +368,14 @@ def valid_permalink(url):
         and not parsed.query
         and not parsed.fragment
     )
+
+
+def canonical_permalink(url):
+    if not isinstance(url, str):
+        return None
+    parsed = urlparse(url.strip())
+    cleaned = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+    return cleaned if valid_permalink(cleaned) else None
 
 
 class MockAndroid:

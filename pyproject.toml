@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "android-instagram-publisher"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.32,<1", "pydantic-settings>=2.6,<3", "boto3>=1.35,<2", "uiautomator2>=3.2,<4", "portalocker>=3,<4"]
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.32,<1", "pydantic-settings>=2.6,<3", "boto3>=1.36,<2", "uiautomator2>=3.2,<4", "portalocker>=3,<4"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10", "httpx>=0.27,<1", "ruff>=0.9,<1"]
