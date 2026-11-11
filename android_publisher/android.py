@@ -113,6 +113,36 @@ class Android:
             time.sleep(0.5)
         raise Stop("UI_NOT_FOUND:" + name)
 
+    def keyboard_visible(self):
+        # Query Android's IME state, not keyboard labels or a fixed screen area.
+        output = self.adb("shell", "dumpsys", "input_method")
+        for field in ("mInputShown", "isInputViewShown", "mIsInputViewShown"):
+            values = re.findall(r"\b" + field + r"=(true|false)\b", output)
+            if values:
+                if len(set(values)) != 1:
+                    raise Stop("KEYBOARD_STATE_UNKNOWN")
+                return values[0] == "true"
+        values = re.findall(r"\bmImeWindowVis=(0x[0-9a-fA-F]+|[0-9]+)\b", output)
+        if len(values) == 1:
+            return bool(int(values[0], 16 if values[0].startswith("0x") else 10) & 2)
+        raise Stop("KEYBOARD_STATE_UNKNOWN")
+
+    def dismiss_keyboard(self, timeout=3):
+        self.guard()
+        if not self.keyboard_visible():
+            return
+        self.checkpoint("before-hide-keyboard")
+        # Exactly one Back, only after Android confirms IME visibility.
+        # Retrying Back could leave the composer, so timeout means stop.
+        self.adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        deadline = time.monotonic() + timeout
+        while self.keyboard_visible():
+            if time.monotonic() >= deadline:
+                raise Stop("KEYBOARD_NOT_HIDDEN")
+            time.sleep(0.15)
+        self.guard()
+        self.checkpoint("keyboard-hidden")
+
     def account(self, expected):
         self.click("profile_tab")
         actual = self.wait("account_username").get_text().strip().lstrip("@")
@@ -199,6 +229,9 @@ class Android:
         if self.wait("caption").get_text() != job.caption:
             raise Stop("CAPTION_MISMATCH")
         self.checkpoint("caption-entered")
+        self.dismiss_keyboard()
+        if self.wait("caption").get_text() != job.caption:
+            raise Stop("CAPTION_MISMATCH")
         self.guard()
         available = self.selector("trial_toggle", required=False) is not None
         if job.publication_mode == Mode.TRIAL_REEL:

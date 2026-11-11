@@ -1,6 +1,8 @@
 """Safe, operator-facing errors; never print raw SDK exception strings."""
 
 HINTS = {
+    "KEYBOARD_STATE_UNKNOWN": "Android не сообщил однозначное состояние клавиатуры. Автоматическое Назад не нажато. Сохраните вывод adb shell dumpsys input_method для адаптации диагностики; не подставляйте случайный селектор.",
+    "KEYBOARD_NOT_HIDDEN": "После единственного автоматического Назад клавиатура не скрылась. Повторное Назад не отправляется, чтобы не выйти из подготовки. Проверьте screenshot/stop.json.",
     "DEVICE_CHECKSUM_MISMATCH": "Переданный MP4 на телефоне не совпал по SHA256. Проверьте свободное место и USB, удалите повреждённый файл из Movies/Publisher, повторите DRY_RUN. Instagram ещё не получил этот файл.",
     "R2_ENDPOINT_INVALID": "Укажите HTTPS endpoint Cloudflare R2: https://ACCOUNT_ID.r2.cloudflarestorage.com (account ID — 32 hex символа). Можно задать R2_ACCOUNT_ID.",
     "FINAL_CONTROL_AT_PREPARATION": "Подготовительный шаг совпал с Share/Опубликовать. Нажатие заблокировано. Повторите калибровку промежуточной кнопки; если экран отсутствует, выберите skip. Финальная кнопка — только publish.",
