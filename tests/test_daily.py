@@ -228,3 +228,24 @@ def test_owner_verified_pilot_cannot_enable_unattended_publication(settings):
     )
     with pytest.raises(Stop, match="VERIFIED_PILOT_REQUIRED"):
         enable_daily(settings, jid, ask=lambda _: pytest.fail("must not ask"))
+
+
+def test_saved_dry_job_is_next_unpublished_video_not_first_ready(settings):
+    from android_publisher.models import Job
+    from android_publisher.store import Store
+
+    store = Store(settings.data_dir / "publisher.sqlite3")
+    first = discover(DailyStorage(keys(1)), day=date(2026, 11, 11), lookback=0)[0]
+    jid = store.create(first)["id"]
+    store.claim(jid)
+    store.barrier(jid, first)
+    store.finish(jid, "PUBLISHED", result={"verification": "owner-confirmed"})
+    run_daily(
+        settings,
+        day=date(2026, 11, 11),
+        lookback=0,
+        storage=DailyStorage(keys(1, 2)),
+        android=MockAndroid(account="crabscoder"),
+    )
+    saved = Job.model_validate_json((settings.data_dir / "daily-first-job.json").read_text())
+    assert saved.video_id == "daily-20261111-02"

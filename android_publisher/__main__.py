@@ -45,6 +45,11 @@ def main(argv=None):
         action="store_true",
         help="Один контролируемый LIVE пилот с записью явного сообщения успеха",
     )
+    live.add_argument(
+        "--decline-whatsapp",
+        action="store_true",
+        help="Отказать только распознанному предложению WhatsApp с единственной кнопкой отказа в том же диалоге",
+    )
     daily = sub.add_parser(
         "daily", help="Один запуск проверки дневных R2-слотов и публикации без вопросов"
     )
@@ -184,7 +189,12 @@ def main(argv=None):
             row = execute_dry(settings, job, interactive=args.interactive)
             return 0 if row["status"] == "DRY_RUN_READY" else 1
         elif args.command == "live":
-            row = execute_live(settings, args.from_dry_run, learn_success=args.learn_success)
+            row = execute_live(
+                settings,
+                args.from_dry_run,
+                learn_success=args.learn_success,
+                decline_whatsapp=args.decline_whatsapp,
+            )
             return 0 if row["status"] == "PUBLISHED" else 1
         elif args.command == "resume":
             from .locking import device_session

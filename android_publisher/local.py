@@ -202,7 +202,9 @@ def confirm_live(row, job, prepared, directory, dry_result, *, ask=input, output
     )
 
 
-def execute_live(settings, dry_id, *, learn_success=False, ask=input, output=print):
+def execute_live(
+    settings, dry_id, *, learn_success=False, decline_whatsapp=False, ask=input, output=print
+):
     if not settings.allow_live:
         raise Stop("LIVE_DISABLED")
     if settings.android_backend != "uiautomator2":
@@ -238,6 +240,7 @@ def execute_live(settings, dry_id, *, learn_success=False, ask=input, output=pri
         android = GuidedAndroid(settings, calibrate=False, ask=ask, output=output)
         android.owner_session = True  # This single pilot still requires exact owner confirmation.
         android.learn_success = learn_success
+        android.decline_unknown_whatsapp = decline_whatsapp
 
         def confirm(row, job, prepared, directory):
             confirm_live(row, job, prepared, directory, result, ask=ask, output=output)
@@ -261,6 +264,8 @@ def execute_live(settings, dry_id, *, learn_success=False, ask=input, output=pri
                     raise Stop("DRY_RUN_CHANGED")
                 profile = android.profile
                 profile["success_evidence"] = evidence
+                if decline_whatsapp:
+                    profile["auto_decline_whatsapp"] = True
                 if evidence["kind"] == "selector":
                     profile.setdefault("selectors", {})["publication_success"] = [
                         evidence["selector"]

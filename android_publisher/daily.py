@@ -95,10 +95,6 @@ def run_daily(settings, *, day=None, lookback=1, live=False, storage=None, andro
             lookback=lookback,
             execution=Execution.LIVE if live else Execution.DRY_RUN,
         )
-        if jobs and not live:
-            (settings.data_dir / "daily-first-job.json").write_text(
-                jobs[0].model_dump_json(indent=2), encoding="utf-8"
-            )
         report = {
             "started_at": datetime.now(UTC).isoformat(),
             "mode": "LIVE" if live else "DRY_RUN",
@@ -112,6 +108,10 @@ def run_daily(settings, *, day=None, lookback=1, live=False, storage=None, andro
             if store.duplicate(job):
                 report["jobs"].append({"video_id": job.video_id, "status": "ALREADY_SUBMITTED"})
                 continue
+            if not live:
+                (settings.data_dir / "daily-first-job.json").write_text(
+                    job.model_dump_json(indent=2), encoding="utf-8"
+                )
             row = store.create(job)
             if row["status"] == "QUEUED":
                 worker.tick(row["id"])

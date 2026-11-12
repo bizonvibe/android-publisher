@@ -10,6 +10,7 @@ from .models import Mode, Retryable, Stop
 from .selectors import resolve
 from .success import configured as success_configured
 from .success import explicit_success, from_hierarchy
+from .whatsapp import REFUSALS, discover_refusal, offer
 
 PACKAGE = "com.instagram.android"
 
@@ -309,6 +310,7 @@ class Android:
 
     def submit(self, prepared):
         self.whatsapp_declined = False
+        self.whatsapp_unrecognized_captured = False
         self.start_success_probe()
         if prepared["final_action"] == "publish_next":
             # Worker has already persisted the barrier: even Next may submit on some versions.
@@ -340,39 +342,55 @@ class Android:
 
     def dismiss_whatsapp_prompt(self, timeout=5):
         selectors = getattr(self, "profile", {}).get("selectors", {})
-        if not selectors.get("whatsapp_share_prompt"):
-            return False
-        marker = self.selector("whatsapp_share_prompt", required=False)
+        marker = None
+        if selectors.get("whatsapp_share_prompt"):
+            marker = self.selector("whatsapp_share_prompt", required=False)
         if marker is None:
-            return False
+            enabled = (
+                getattr(self, "decline_unknown_whatsapp", False)
+                or getattr(self, "profile", {}).get("auto_decline_whatsapp") is True
+            )
+            if not enabled:
+                return False
+            self.guard()
+            xml = self.d.dump_hierarchy()
+            discovered = discover_refusal(xml)
+            if not discovered:
+                # Capture transient offers while present, rather than after timeout/owner dismissal.
+                if "whatsapp" in xml.casefold() and not getattr(
+                    self, "whatsapp_unrecognized_captured", False
+                ):
+                    self.whatsapp_unrecognized_captured = True
+                    self.checkpoint("unrecognized-whatsapp-offer")
+                return False
+            self.checkpoint("whatsapp-offer-discovered")
+            directory = getattr(self, "trace_dir", None)
+            if directory is not None:
+                (directory / "whatsapp-offer.xml").write_text(xml, encoding="utf-8")
+                (directory / "whatsapp-selectors.json").write_text(
+                    json.dumps(discovered, ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+            self.profile.setdefault("selectors", {}).update(discovered)
+            selectors = self.profile["selectors"]
+            marker = self.selector("whatsapp_share_prompt", required=False)
+            if marker is None:
+                raise Stop("WHATSAPP_PROMPT_CHANGED")
         if not selectors.get("whatsapp_share_decline"):
             raise Stop("WHATSAPP_REFUSAL_NOT_CONFIGURED")
         info = marker.info
         message = " ".join(
             str(value) for value in (info.get("text", ""), info.get("contentDescription", ""))
         ).casefold()
-        if "whatsapp" not in message or not any(
-            word in message
-            for word in ("поделиться", "поделитесь", "делиться", "делитесь", "share")
-        ):
+        if not offer(message):
             raise Stop("UNEXPECTED_OPTIONAL_DIALOG")
         if getattr(self, "whatsapp_declined", False):
             raise Stop("WHATSAPP_PROMPT_NOT_DISMISSED")
-        decline = self.selector("whatsapp_share_decline")
+        decline = self.selector("whatsapp_share_decline", required=False)
+        if decline is None:
+            raise Stop("WHATSAPP_PROMPT_CHANGED")
         info = decline.info
         label = str(info.get("text", "") or info.get("contentDescription", "")).strip().casefold()
-        if info.get("checkable") or label not in {
-            "нет",
-            "не сейчас",
-            "не делиться",
-            "нет, спасибо",
-            "пропустить",
-            "no",
-            "not now",
-            "no thanks",
-            "no, thanks",
-            "skip",
-        }:
+        if info.get("checkable") or label not in REFUSALS:
             raise Stop("UNEXPECTED_OPTIONAL_DIALOG")
         self.checkpoint("before-whatsapp-refusal")
         self.whatsapp_declined = True

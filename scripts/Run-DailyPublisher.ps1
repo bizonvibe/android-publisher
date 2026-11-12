@@ -1,7 +1,8 @@
 param(
     [ValidateSet('DRY_RUN','LIVE')][string]$ExecutionMode = 'DRY_RUN',
     [string]$PilotDryRunId = '',
-    [switch]$LearnSuccess
+    [switch]$LearnSuccess,
+    [switch]$DeclineWhatsApp
 )
 $ErrorActionPreference = 'Stop'
 $PublisherRoot = Split-Path $PSScriptRoot -Parent
@@ -20,14 +21,13 @@ $PublisherPython = Join-Path $PublisherRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path $PublisherPython)) { throw 'Install project dependencies before scheduling.' }
 if ($PilotDryRunId) {
     if ($ExecutionMode -ne 'LIVE') { throw 'A pilot requires explicit -ExecutionMode LIVE.' }
-    if ($LearnSuccess) {
-        & $PublisherPython -m android_publisher live --from-dry-run $PilotDryRunId --learn-success
-    } else {
-        & $PublisherPython -m android_publisher live --from-dry-run $PilotDryRunId
-    }
+    $PublisherPilotArgs = @('-m', 'android_publisher', 'live', '--from-dry-run', $PilotDryRunId)
+    if ($LearnSuccess) { $PublisherPilotArgs += '--learn-success' }
+    if ($DeclineWhatsApp) { $PublisherPilotArgs += '--decline-whatsapp' }
+    & $PublisherPython @PublisherPilotArgs
     exit $LASTEXITCODE
 }
-if ($LearnSuccess) { throw 'LearnSuccess is allowed only for a single PilotDryRunId.' }
+if ($LearnSuccess -or $DeclineWhatsApp) { throw 'Pilot flags require a single PilotDryRunId.' }
 $PublisherLogDir = Join-Path $PublisherRoot 'data\schedule-logs'
 New-Item -ItemType Directory -Path $PublisherLogDir -Force | Out-Null
 $PublisherLog = Join-Path $PublisherLogDir ((Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
