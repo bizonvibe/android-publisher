@@ -1,6 +1,8 @@
 """Safe, operator-facing errors; never print raw SDK exception strings."""
 
 HINTS = {
+    "INVALID_CONFIRMATION_SNAPSHOT": "В XML нет однозначного заголовка и обычной кнопки Поделиться ожидаемого окна Instagram. Профиль не изменён, нажатий не было.",
+    "CONFIRMATION_SNAPSHOT_NOT_FOUND": "Среди data/jobs не найден XML окна Обновление оригинального аудио. Можно передать сохранённый файл через import-confirmation --xml путь. Ничего не нажимайте ради поиска старого снимка.",
     "DAILY_NOT_ENABLED": "Ежедневный LIVE ещё не разрешён. Нужны откалиброванный профиль, успешный LIVE тест и enable-daily --pilot-job UUID.",
     "DAILY_PROFILE_INCOMPLETE": "Для ежедневной отправки откалибруйте publish_next, publication_confirmation, publish и publication_success. Затем approve-profile. Не сохраняйте Далее вместо финального Share.",
     "VERIFIED_PILOT_REQUIRED": "Нужен PUBLISHED тест NORMAL_REEL в crabscoder, проверенный UI-маркером успеха с тем же телефоном/версией/профилем. Ручное подтверждение не включает ежедневный автомат.",

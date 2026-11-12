@@ -28,6 +28,10 @@ def main(argv=None):
     doctor.add_argument("--download", action="store_true")
     calibration = sub.add_parser("calibrate", help="Сохранить селектор текущего экрана без нажатия")
     calibration.add_argument("--step", required=True)
+    imported = sub.add_parser(
+        "import-confirmation", help="Сохранить селекторы подтверждения из старого XML без нажатий"
+    )
+    imported.add_argument("--xml", type=Path)
     dry = sub.add_parser("dry-run", help="Подготовить и остановиться перед Share")
     dry.add_argument("--job", type=Path, default=Path("data/first-job.json"))
     dry.add_argument("--mode", choices=("TRIAL_REEL", "NORMAL_REEL"))
@@ -81,6 +85,19 @@ def main(argv=None):
         if args.command == "setup":
             return 0 if setup(args.config) is not None else 1
         settings = load_settings(args.config)
+        if args.command == "import-confirmation":
+            from .confirmation_import import import_confirmation
+
+            result = import_confirmation(settings, args.xml)
+            print("Сохранены publication_confirmation и publish из: " + result["source"])
+            print(
+                "publish_next сохранён без изменений. Нажатий и публикации не было. LIVE выключен в профиле."
+            )
+            if not result["success_selector_configured"]:
+                print(
+                    "Остался publication_success — проверка успешной загрузки. Ежедневный LIVE пока не включён."
+                )
+            return 0
         if args.command in {"doctor", "dry-run", "live"}:
             credentials(settings)
         if args.command in {"daily", "configure-daily-flow", "approve-profile", "enable-daily"}:
