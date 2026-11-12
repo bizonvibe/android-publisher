@@ -1,0 +1,10 @@
+{
+  "video_id": "reel-20261109-92645916",
+  "r2_object_key": "reels/ru/reel-20261109-92645916/video.mp4",
+  "r2_manifest_key": "reels/ru/reel-20261109-92645916/manifest.json",
+  "account_id": "replace_with_your_username",
+  "caption": "Заполните через мастер: описание будет прочитано из R2 и показано для проверки.",
+  "publication_mode": "TRIAL_REEL",
+  "execution_mode": "DRY_RUN",
+  "idempotency_key": "first-reel-dry-only"
+}

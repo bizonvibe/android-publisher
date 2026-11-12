@@ -1,0 +1,40 @@
+name: tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.12']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e ".[test]"
+      - run: python -m pytest -q
+      - run: python -m ruff check .
+      - run: python -m android_publisher --help
+      - name: Validate Windows launcher syntax
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $PublisherParseErrors = $null
+          $PublisherTokens = $null
+          foreach ($PublisherScript in Get-ChildItem scripts/*.ps1) {
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $PublisherScript.FullName,
+              [ref]$PublisherTokens,
+              [ref]$PublisherParseErrors
+            ) | Out-Null
+            if ($PublisherParseErrors.Count -gt 0) { throw ($PublisherParseErrors | Out-String) }
+          }
+          [xml]$PublisherPreview = & ./scripts/Install-DailyPublisher.ps1 -Preview
+          $PublisherNs = New-Object System.Xml.XmlNamespaceManager($PublisherPreview.NameTable)
+          $PublisherNs.AddNamespace('t', 'http://schemas.microsoft.com/windows/2004/02/mit/task')
+          $PublisherBoundary = $PublisherPreview.SelectSingleNode('//t:StartBoundary', $PublisherNs).InnerText
+          if ($PublisherBoundary -notmatch 'T12:00:00\+03:00$') { throw 'Schedule must be Moscow noon.' }
+          if ($PublisherPreview.OuterXml -match 'SECRET_ACCESS_KEY|ACCESS_KEY_ID') { throw 'Credentials must not be embedded in task XML.' }

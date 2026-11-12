@@ -1,0 +1,45 @@
+{
+  "file": "FBO-FBS-Misha2-Fixed-Captions.mp4",
+  "duration": 55.8,
+  "frames": "1671",
+  "width": 1080,
+  "height": 1920,
+  "fps": "30/1",
+  "video_codec": "h264",
+  "audio_codec": "aac",
+  "sha256": "96af22112c4f7f7f0e67fd4cd51f3249bc6c8510e56f07881a58118cd5b26a99",
+  "bytes": 12105982,
+  "avatar_seconds": 14.966666666666667,
+  "avatar_video_id": "e1ed5ffd8168fee3f7b64a8ac8f62cb8",
+  "decode": "passed",
+  "captions": {
+    "one_global_layer": true,
+    "fixed_box": [
+      80,
+      1340,
+      810,
+      138
+    ],
+    "modes": [
+      "full avatar",
+      "full graphics",
+      "double screen"
+    ],
+    "checked_samples_seconds": [
+      1,
+      5,
+      11,
+      17,
+      21,
+      25,
+      29,
+      34,
+      40,
+      43,
+      47,
+      53,
+      55
+    ]
+  },
+  "speech_reused": true
+}

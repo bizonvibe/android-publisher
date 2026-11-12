@@ -1,0 +1,37 @@
+{
+  "status": "saved_ready_for_delivery",
+  "delivery_confirmed": false,
+  "files": [
+    {
+      "name": "01-GitHub-Backup.mp4",
+      "library_file_id": "libfile_548aea8cff00819197288a3e6c98a859",
+      "file_id": "file_00000000786c81f4909e093885b7fa66"
+    },
+    {
+      "name": "02-Magic-UI.mp4",
+      "library_file_id": "libfile_cee2a9555de88191aaa1426d9d60db45",
+      "file_id": "file_00000000959881f6a42ff6558e4604d5"
+    },
+    {
+      "name": "04-AI-Profit.mp4",
+      "library_file_id": "libfile_9df98b12c2708191be4642e28a5ae5eb",
+      "file_id": "file_00000000f0a081f49d9a420a032e03a1"
+    },
+    {
+      "name": "05-Skill-Setup.mp4",
+      "library_file_id": "libfile_7f0f43db2fc48191882f1d5b31f4b92d",
+      "file_id": "file_00000000e698820e983d41e79109dc4f"
+    },
+    {
+      "name": "Four-Reels-Oct13.zip",
+      "library_file_id": "libfile_aea4e634ee04819199a13955bdf58de3",
+      "file_id": "file_000000009ad4820e9230716ee3af0be6"
+    },
+    {
+      "name": "Oct13-Production-Sources.zip",
+      "library_file_id": "libfile_7c48d9cb187081918bcaadf0ec3927d0",
+      "file_id": "file_00000000b9c081f5b8da6dd45f15a9c1"
+    }
+  ],
+  "source_archive_includes": "Four original Puck WAVs, actual timings, narration metadata, source code, package lock, approved avatar and Rebound; no secrets."
+}
