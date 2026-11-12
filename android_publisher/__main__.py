@@ -36,6 +36,22 @@ def main(argv=None):
         "live", help="Только явный LIVE после свежего DRY_RUN и подтверждения владельца"
     )
     live.add_argument("--from-dry-run", required=True)
+    daily = sub.add_parser(
+        "daily", help="Один запуск проверки дневных R2-слотов и публикации без вопросов"
+    )
+    daily.add_argument("--date", type=str)
+    daily.add_argument("--lookback", type=int, default=1)
+    daily.add_argument("--live", action="store_true")
+    sub.add_parser(
+        "configure-daily-flow", help="Подготовить двухшаговый профиль; LIVE не включается"
+    )
+    sub.add_parser(
+        "approve-profile", help="Подтвердить откалиброванный профиль перед локальным LIVE тестом"
+    )
+    enable = sub.add_parser(
+        "enable-daily", help="Разрешить ежедневную публикацию после успешного LIVE теста"
+    )
+    enable.add_argument("--pilot-job", required=True)
     sub.add_parser("resume", help="Снять паузу ПОСЛЕ ручной проверки, не повторяя старые задания")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -67,6 +83,46 @@ def main(argv=None):
         settings = load_settings(args.config)
         if args.command in {"doctor", "dry-run", "live"}:
             credentials(settings)
+        if args.command in {"daily", "configure-daily-flow", "approve-profile", "enable-daily"}:
+            from .daily import approve_profile, configure_flow, enable_daily, run_daily
+
+            if args.command == "daily":
+                from datetime import date
+
+                report = run_daily(
+                    settings,
+                    day=date.fromisoformat(args.date) if args.date else None,
+                    lookback=args.lookback,
+                    live=args.live,
+                )
+                print(json.dumps(report, ensure_ascii=False, indent=2))
+                return (
+                    0
+                    if all(
+                        row["status"] in {"PUBLISHED", "DRY_RUN_READY", "ALREADY_SUBMITTED"}
+                        for row in report["jobs"]
+                    )
+                    else 1
+                )
+            if args.command == "configure-daily-flow":
+                from .locking import device_session
+
+                with device_session(settings):
+                    configure_flow(settings)
+                print(
+                    "Профиль двух шагов подготовлен; откалибруйте publish_next, publication_confirmation, publish, publication_success. LIVE не включён."
+                )
+            elif args.command == "approve-profile":
+                approve_profile(settings)
+                print(
+                    "Профиль подтверждён; расписание ещё не включено. Нужен успешный локальный LIVE тест."
+                )
+            else:
+                enable_daily(settings, args.pilot_job)
+                print(
+                    "Разрешение на ежедневные NORMAL_REEL в @crabscoder сохранено. Установите Windows Task Scheduler."
+                )
+            return 0
         if args.command == "doctor":
             from .doctor import diagnose
             from .locking import device_session

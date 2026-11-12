@@ -20,6 +20,8 @@ LABELS = {
     "trial_mode_marker": "подтверждение Trial: активный переключатель или однозначная подпись",
     "normal_mode_marker": "подтверждение обычного режима: выключенный Trial либо однозначная подпись",
     "composer_account": "username на финальном экране; owner если Instagram здесь его не показывает",
+    "publish_next": "Далее на форме с описанием: может начать отправку; сохраняется без нажатия",
+    "publication_confirmation": "заголовок окна подтверждения (например Обновление оригинального аудио)",
     "publish": "ФИНАЛЬНАЯ кнопка Поделиться/Share; выберите, но НЕ нажимайте",
     "publication_success": "явное сообщение об успешной публикации этого ролика, не вкладка ленты",
 }
@@ -237,6 +239,8 @@ class GuidedAndroid(Android):
         return obj
 
     def confirm_composer_account(self, expected):
+        if self.profile.get("composer_account_verification") == "profile_before_import":
+            return super().confirm_composer_account(expected)
         if self.profile.get("composer_account_verification") != "owner":
             obj = self.selector("composer_account")
             if obj is not None:
@@ -259,7 +263,7 @@ class GuidedAndroid(Android):
             result["verification"] = "ui-success-marker"
             return result
         # Local owner session only: never confuse human verification with an automatic UI assertion.
-        if not self.owner_session:
+        if not self.owner_session or prepared["final_action"] == "publish_next":
             raise Stop("SUCCESS_SELECTOR_REQUIRED")
         self.tap_final(prepared)
         self.checkpoint("sent-awaiting-owner-verification")

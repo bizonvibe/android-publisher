@@ -65,6 +65,12 @@ class Worker:
             result = self.android.submit(prepared)
             if result.get("verified") is not True:
                 raise Stop("UNVERIFIED_RESULT")
+            result.update(
+                {
+                    key: prepared.get(key)
+                    for key in ("device_serial", "app_version", "profile_sha256", "download_sha256")
+                }
+            )
             self.store.finish(
                 jid, "PUBLISHED", result=result, artifacts=self.android.evidence(directory)
             )

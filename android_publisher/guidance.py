@@ -1,6 +1,9 @@
 """Safe, operator-facing errors; never print raw SDK exception strings."""
 
 HINTS = {
+    "DAILY_NOT_ENABLED": "Ежедневный LIVE ещё не разрешён. Нужны откалиброванный профиль, успешный LIVE тест и enable-daily --pilot-job UUID.",
+    "DAILY_PROFILE_INCOMPLETE": "Для ежедневной отправки откалибруйте publish_next, publication_confirmation, publish и publication_success. Затем approve-profile. Не сохраняйте Далее вместо финального Share.",
+    "VERIFIED_PILOT_REQUIRED": "Нужен PUBLISHED тест NORMAL_REEL в crabscoder, проверенный UI-маркером успеха с тем же телефоном/версией/профилем. Ручное подтверждение не включает ежедневный автомат.",
     "KEYBOARD_STATE_UNKNOWN": "Android не сообщил однозначное состояние клавиатуры. Автоматическое Назад не нажато. Сохраните вывод adb shell dumpsys input_method для адаптации диагностики; не подставляйте случайный селектор.",
     "KEYBOARD_NOT_HIDDEN": "После единственного автоматического Назад клавиатура не скрылась. Повторное Назад не отправляется, чтобы не выйти из подготовки. Проверьте screenshot/stop.json.",
     "DEVICE_CHECKSUM_MISMATCH": "Переданный MP4 на телефоне не совпал по SHA256. Проверьте свободное место и USB, удалите повреждённый файл из Movies/Publisher, повторите DRY_RUN. Instagram ещё не получил этот файл.",

@@ -148,6 +148,7 @@ class Android:
         actual = self.wait("account_username").get_text().strip().lstrip("@")
         if actual.casefold() != expected.casefold():
             raise Stop("ACCOUNT_MISMATCH")
+        self.verified_account = actual.casefold()
 
     def toggle(self, name, desired):
         self.checkpoint("toggle-" + name)
@@ -177,6 +178,20 @@ class Android:
             and not self.profile.get("selectors", {}).get("publication_success")
         ):
             raise Stop("SUCCESS_SELECTOR_REQUIRED")
+        if (
+            job.execution_mode == "LIVE"
+            and self.profile.get("submission_flow") == "next_then_confirmation"
+        ):
+            if any(
+                not self.profile.get("selectors", {}).get(name)
+                for name in (
+                    "publish_next",
+                    "publication_confirmation",
+                    "publish",
+                    "publication_success",
+                )
+            ):
+                raise Stop("DAILY_PROFILE_INCOMPLETE")
         if job.publication_mode == Mode.SHARE_TRIAL_TO_EVERYONE:
             url = (source or {}).get("result", {}).get("permalink")
             if not valid_permalink(url):
@@ -246,9 +261,14 @@ class Android:
                 self.toggle("trial_toggle", False)
             self.wait("normal_mode_marker")
         self.confirm_composer_account(job.account_id)
-        self.wait("publish")
+        action = (
+            "publish_next"
+            if self.profile.get("submission_flow") == "next_then_confirmation"
+            else "publish"
+        )
+        self.wait(action)
         self.checkpoint("ready-before-final")
-        return {"trial_available": available, "final_action": "publish", **self.identity()}
+        return {"trial_available": available, "final_action": action, **self.identity()}
 
     def tap_final(self, prepared):
         self.last_step = "final-confirmation"
@@ -287,15 +307,37 @@ class Android:
         )
 
     def submit(self, prepared):
-        self.tap_final(prepared)
-        self.wait("publication_success", seconds=60)
-        # Toast/feed navigation alone is deliberately insufficient; profile must select
-        # an explicit success confirmation from this submission.
+        if prepared["final_action"] == "publish_next":
+            # Worker has already persisted the barrier: even Next may submit on some versions.
+            self.tap_final(prepared)
+            deadline = time.monotonic() + 60
+            while True:
+                if self.selector("publication_success", required=False) is not None:
+                    break  # This version submitted directly: never press anything again.
+                if self.selector("publication_confirmation", required=False) is not None:
+                    self.checkpoint("publication-confirmation")
+                    self.tap_final({"final_action": "publish"})
+                    self.wait("publication_success", seconds=60)
+                    break
+                if time.monotonic() >= deadline:
+                    raise Stop("UNVERIFIED_RESULT")
+                time.sleep(0.3)
+        else:
+            self.tap_final(prepared)
+            self.wait("publication_success", seconds=60)
         link = self.selector("published_permalink", required=False)
         permalink = link.get_text().strip() if link is not None else None
-        return {"verified": True, "permalink": canonical_permalink(permalink)}
+        return {
+            "verified": True,
+            "verification": "ui-success-marker",
+            "permalink": canonical_permalink(permalink),
+        }
 
     def confirm_composer_account(self, expected):
+        if self.profile.get("composer_account_verification") == "profile_before_import":
+            if getattr(self, "verified_account", None) != expected.casefold():
+                raise Stop("ACCOUNT_MISMATCH")
+            return
         if (
             self.wait("composer_account").get_text().strip().lstrip("@").casefold()
             != expected.casefold()
