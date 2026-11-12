@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from .android import PACKAGE, Android, canonical_permalink
 from .models import Stop
 from .selectors import resolve
+from .success import configured as success_configured
 
 LABELS = {
     "profile_tab": "вкладка вашего профиля",
@@ -258,7 +259,7 @@ class GuidedAndroid(Android):
         self.checkpoint("account-confirmed-by-owner")
 
     def submit(self, prepared):
-        if self.profile.get("selectors", {}).get("publication_success"):
+        if success_configured(self.profile) or getattr(self, "learn_success", False):
             result = super().submit(prepared)
             result["verification"] = "ui-success-marker"
             return result

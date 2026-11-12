@@ -8,6 +8,8 @@ from urllib.parse import urlparse, urlunparse
 
 from .models import Mode, Retryable, Stop
 from .selectors import resolve
+from .success import configured as success_configured
+from .success import explicit_success, from_hierarchy
 
 PACKAGE = "com.instagram.android"
 
@@ -175,7 +177,7 @@ class Android:
         if (
             job.execution_mode == "LIVE"
             and not getattr(self, "owner_session", False)
-            and not self.profile.get("selectors", {}).get("publication_success")
+            and not success_configured(self.profile)
         ):
             raise Stop("SUCCESS_SELECTOR_REQUIRED")
         if (
@@ -184,12 +186,9 @@ class Android:
         ):
             if any(
                 not self.profile.get("selectors", {}).get(name)
-                for name in (
-                    "publish_next",
-                    "publication_confirmation",
-                    "publish",
-                    "publication_success",
-                )
+                for name in ("publish_next", "publication_confirmation", "publish")
+            ) or (
+                not getattr(self, "learn_success", False) and not success_configured(self.profile)
             ):
                 raise Stop("DAILY_PROFILE_INCOMPLETE")
         if job.publication_mode == Mode.SHARE_TRIAL_TO_EVERYONE:
@@ -272,7 +271,7 @@ class Android:
 
     def tap_final(self, prepared):
         self.last_step = "final-confirmation"
-        if self.selector("publication_success", required=False) is not None:
+        if self.success_seen():
             raise Stop("STALE_SUCCESS_MARKER")
         # Caller must persist its irreversible barrier BEFORE entering this method.
         self.tap_once(self.selector(prepared["final_action"]), final=True)
@@ -307,31 +306,95 @@ class Android:
         )
 
     def submit(self, prepared):
+        self.start_success_probe()
         if prepared["final_action"] == "publish_next":
             # Worker has already persisted the barrier: even Next may submit on some versions.
             self.tap_final(prepared)
             deadline = time.monotonic() + 60
             while True:
-                if self.selector("publication_success", required=False) is not None:
+                if self.success_seen():
                     break  # This version submitted directly: never press anything again.
                 if self.selector("publication_confirmation", required=False) is not None:
                     self.checkpoint("publication-confirmation")
                     self.tap_final({"final_action": "publish"})
-                    self.wait("publication_success", seconds=60)
+                    self.wait_success(seconds=60)
                     break
                 if time.monotonic() >= deadline:
                     raise Stop("UNVERIFIED_RESULT")
                 time.sleep(0.3)
         else:
             self.tap_final(prepared)
-            self.wait("publication_success", seconds=60)
+            self.wait_success(seconds=60)
         link = self.selector("published_permalink", required=False)
         permalink = link.get_text().strip() if link is not None else None
         return {
             "verified": True,
             "verification": "ui-success-marker",
+            "success_evidence": getattr(self, "observed_success", None),
             "permalink": canonical_permalink(permalink),
         }
+
+    def start_success_probe(self):
+        profile = getattr(self, "profile", {})
+        self.observed_success = None
+        self.toast_probe_ready = False
+        if (
+            getattr(self, "learn_success", False)
+            or profile.get("success_evidence", {}).get("kind") == "toast"
+        ):
+            try:
+                self.d.toast.reset()
+                self.d.toast.get_message(
+                    wait_timeout=0, default=None
+                )  # Start listener before sending.
+                self.d.toast.reset()
+                self.toast_probe_ready = True
+            except Exception:
+                if not getattr(self, "learn_success", False):
+                    raise Stop("SUCCESS_OBSERVATION_UNAVAILABLE") from None
+
+    def success_seen(self):
+        node = self.selector("publication_success", required=False)
+        if node is not None:
+            self.observed_success = {"kind": "configured-selector"}
+            return True
+        learning = getattr(self, "learn_success", False)
+        if learning:
+            evidence = from_hierarchy(self.d.dump_hierarchy())
+            if evidence:
+                self.guard()
+                self.observed_success = evidence
+                return True
+        if getattr(self, "toast_probe_ready", False):
+            message = self.d.toast.get_message(wait_timeout=0, default=None)
+            if message:
+                directory = getattr(self, "trace_dir", None)
+                if directory is not None:
+                    with (directory / "success-observations.jsonl").open(
+                        "a", encoding="utf-8"
+                    ) as output:
+                        output.write(json.dumps({"toast": message}, ensure_ascii=False) + "\n")
+                expected = getattr(self, "profile", {}).get("success_evidence", {}).get("text")
+                if explicit_success(message) and (learning or message == expected):
+                    self.guard()
+                    self.observed_success = {"kind": "toast", "text": message}
+                    return True
+        return False
+
+    def wait_success(self, seconds=60):
+        if (
+            not getattr(self, "learn_success", False)
+            and getattr(self, "profile", {}).get("success_evidence", {}).get("kind") != "toast"
+        ):
+            self.wait("publication_success", seconds=seconds)
+            self.observed_success = {"kind": "configured-selector"}
+            return
+        deadline = time.monotonic() + seconds
+        while not self.success_seen():
+            if time.monotonic() >= deadline:
+                raise Stop("UNVERIFIED_RESULT")
+            time.sleep(0.3)
+        self.checkpoint("explicit-success-observed")
 
     def confirm_composer_account(self, expected):
         if self.profile.get("composer_account_verification") == "profile_before_import":

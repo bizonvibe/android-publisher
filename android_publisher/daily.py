@@ -12,6 +12,7 @@ from .locking import device_session
 from .models import Execution, Job, Mode, Stop
 from .storage import R2
 from .store import Store
+from .success import configured as success_configured
 from .worker import Worker
 
 MOSCOW = ZoneInfo("Europe/Moscow")
@@ -213,10 +214,11 @@ def approve_profile(settings, *, ask=input):
             "publish_next",
             "publication_confirmation",
             "publish",
-            "publication_success",
         )
-        if profile.get("submission_flow") != "next_then_confirmation" or any(
-            not profile.get("selectors", {}).get(name) for name in required
+        if (
+            profile.get("submission_flow") != "next_then_confirmation"
+            or any(not profile.get("selectors", {}).get(name) for name in required)
+            or not success_configured(profile)
         ):
             raise Stop("DAILY_PROFILE_INCOMPLETE")
         if (

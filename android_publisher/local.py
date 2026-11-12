@@ -202,7 +202,7 @@ def confirm_live(row, job, prepared, directory, dry_result, *, ask=input, output
     )
 
 
-def execute_live(settings, dry_id, *, ask=input, output=print):
+def execute_live(settings, dry_id, *, learn_success=False, ask=input, output=print):
     if not settings.allow_live:
         raise Stop("LIVE_DISABLED")
     if settings.android_backend != "uiautomator2":
@@ -217,6 +217,8 @@ def execute_live(settings, dry_id, *, ask=input, output=print):
             raise Stop("DRY_RUN_REQUIRED")
         if datetime.now(UTC) - datetime.fromisoformat(dry["updated"]) > timedelta(minutes=30):
             raise Stop("DRY_RUN_EXPIRED")
+        if learn_success and dry["job"]["publication_mode"] != "NORMAL_REEL":
+            raise Stop("LEARNING_REQUIRES_NORMAL_REEL")
         result = dry["result"] or {}
         if (
             result.get("device_serial") != settings.device_serial
@@ -234,7 +236,8 @@ def execute_live(settings, dry_id, *, ask=input, output=print):
             }
         )
         android = GuidedAndroid(settings, calibrate=False, ask=ask, output=output)
-        android.owner_session = True  # Memory only, never persist LIVE/profile approval.
+        android.owner_session = True  # This single pilot still requires exact owner confirmation.
+        android.learn_success = learn_success
 
         def confirm(row, job, prepared, directory):
             confirm_live(row, job, prepared, directory, result, ask=ask, output=output)
@@ -242,6 +245,39 @@ def execute_live(settings, dry_id, *, ask=input, output=print):
         row = store.create(job)
         Worker(store, android, R2(settings), settings, before_submit=confirm).tick(row["id"])
         row = store.get(row["id"])
+        if learn_success and row["status"] == "PUBLISHED":
+            from .calibration import save_profile
+            from .success import explicit_success
+
+            evidence = (row["result"] or {}).get("success_evidence") or {}
+            if evidence.get("kind") in {"selector", "toast"} and explicit_success(
+                evidence.get("text")
+            ):
+                # Only add the actually observed acknowledgement; do not touch submission controls.
+                if (
+                    hashlib.sha256(settings.selector_profile.read_bytes()).hexdigest()
+                    != result["profile_sha256"]
+                ):
+                    raise Stop("DRY_RUN_CHANGED")
+                profile = android.profile
+                profile["success_evidence"] = evidence
+                if evidence["kind"] == "selector":
+                    profile.setdefault("selectors", {})["publication_success"] = [
+                        evidence["selector"]
+                    ]
+                profile["live_calibrated"] = True
+                save_profile(settings.selector_profile, profile)
+                (settings.data_dir / "daily-authorization.json").unlink(missing_ok=True)
+                verified = row["result"]
+                verified["tested_profile_sha256"] = result["profile_sha256"]
+                verified["profile_sha256"] = hashlib.sha256(
+                    settings.selector_profile.read_bytes()
+                ).hexdigest()
+                store.finish(row["id"], "PUBLISHED", result=verified, artifacts=row["artifacts"])
+                row = store.get(row["id"])
+                output(
+                    "Явное сообщение Instagram об успехе сохранено. Ежедневный LIVE ещё не включён."
+                )
     output(json.dumps(row, ensure_ascii=False, indent=2))
     return row
 

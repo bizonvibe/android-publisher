@@ -1,4 +1,8 @@
-param([ValidateSet('DRY_RUN','LIVE')][string]$ExecutionMode = 'DRY_RUN')
+param(
+    [ValidateSet('DRY_RUN','LIVE')][string]$ExecutionMode = 'DRY_RUN',
+    [string]$PilotDryRunId = '',
+    [switch]$LearnSuccess
+)
 $ErrorActionPreference = 'Stop'
 $PublisherRoot = Split-Path $PSScriptRoot -Parent
 Set-Location $PublisherRoot
@@ -14,6 +18,16 @@ $env:PYTHONUTF8 = '1'
 $env:PUBLISHER_ALLOW_LIVE = if ($ExecutionMode -eq 'LIVE') { 'true' } else { 'false' }
 $PublisherPython = Join-Path $PublisherRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path $PublisherPython)) { throw 'Install project dependencies before scheduling.' }
+if ($PilotDryRunId) {
+    if ($ExecutionMode -ne 'LIVE') { throw 'A pilot requires explicit -ExecutionMode LIVE.' }
+    if ($LearnSuccess) {
+        & $PublisherPython -m android_publisher live --from-dry-run $PilotDryRunId --learn-success
+    } else {
+        & $PublisherPython -m android_publisher live --from-dry-run $PilotDryRunId
+    }
+    exit $LASTEXITCODE
+}
+if ($LearnSuccess) { throw 'LearnSuccess is allowed only for a single PilotDryRunId.' }
 $PublisherLogDir = Join-Path $PublisherRoot 'data\schedule-logs'
 New-Item -ItemType Directory -Path $PublisherLogDir -Force | Out-Null
 $PublisherLog = Join-Path $PublisherLogDir ((Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')

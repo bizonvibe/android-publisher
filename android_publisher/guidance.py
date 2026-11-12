@@ -1,6 +1,8 @@
 """Safe, operator-facing errors; never print raw SDK exception strings."""
 
 HINTS = {
+    "LEARNING_REQUIRES_NORMAL_REEL": "Контрольный запуск распознавания успеха разрешён только для нового NORMAL_REEL после DRY_RUN.",
+    "SUCCESS_OBSERVATION_UNAVAILABLE": "Android не позволил очистить/прочитать канал уведомления об успехе. Ничего повторно не отправляйте; проверьте сохранённый результат и подключение UIAutomator2.",
     "INVALID_CONFIRMATION_SNAPSHOT": "В XML нет однозначного заголовка и обычной кнопки Поделиться ожидаемого окна Instagram. Профиль не изменён, нажатий не было.",
     "CONFIRMATION_SNAPSHOT_NOT_FOUND": "Среди data/jobs не найден XML окна Обновление оригинального аудио. Можно передать сохранённый файл через import-confirmation --xml путь. Ничего не нажимайте ради поиска старого снимка.",
     "DAILY_NOT_ENABLED": "Ежедневный LIVE ещё не разрешён. Нужны откалиброванный профиль, успешный LIVE тест и enable-daily --pilot-job UUID.",

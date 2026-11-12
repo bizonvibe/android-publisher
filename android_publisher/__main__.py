@@ -40,6 +40,11 @@ def main(argv=None):
         "live", help="Только явный LIVE после свежего DRY_RUN и подтверждения владельца"
     )
     live.add_argument("--from-dry-run", required=True)
+    live.add_argument(
+        "--learn-success",
+        action="store_true",
+        help="Один контролируемый LIVE пилот с записью явного сообщения успеха",
+    )
     daily = sub.add_parser(
         "daily", help="Один запуск проверки дневных R2-слотов и публикации без вопросов"
     )
@@ -162,7 +167,7 @@ def main(argv=None):
             row = execute_dry(settings, job, interactive=args.interactive)
             return 0 if row["status"] == "DRY_RUN_READY" else 1
         elif args.command == "live":
-            row = execute_live(settings, args.from_dry_run)
+            row = execute_live(settings, args.from_dry_run, learn_success=args.learn_success)
             return 0 if row["status"] == "PUBLISHED" else 1
         elif args.command == "resume":
             from .locking import device_session
