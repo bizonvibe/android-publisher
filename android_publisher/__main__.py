@@ -61,6 +61,11 @@ def main(argv=None):
         "enable-daily", help="Разрешить ежедневную публикацию после успешного LIVE теста"
     )
     enable.add_argument("--pilot-job", required=True)
+    reconciled = sub.add_parser(
+        "record-published",
+        help="Записать подтверждённую владельцем публикацию без повторной отправки",
+    )
+    reconciled.add_argument("--job", required=True)
     sub.add_parser("resume", help="Снять паузу ПОСЛЕ ручной проверки, не повторяя старые задания")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -90,6 +95,18 @@ def main(argv=None):
         if args.command == "setup":
             return 0 if setup(args.config) is not None else 1
         settings = load_settings(args.config)
+        if args.command == "record-published":
+            from .recovery import record_owner_published
+
+            url = input(
+                "Вставьте ссылку на именно этот опубликованный Reel, который вы проверили в своём аккаунте: "
+            ).strip()
+            row = record_owner_published(settings, args.job, url)
+            print("Записано PUBLISHED (owner-confirmed): " + row["id"])
+            print(
+                "Повторной отправки не было. Резерв от дублей, пауза и выключенный ежедневный LIVE сохранены."
+            )
+            return 0
         if args.command == "import-confirmation":
             from .confirmation_import import import_confirmation
 

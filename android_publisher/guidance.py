@@ -1,6 +1,11 @@
 """Safe, operator-facing errors; never print raw SDK exception strings."""
 
 HINTS = {
+    "INVALID_PERMALINK": "Нужна HTTPS-ссылка instagram.com/reel/SHORTCODE на опубликованный ролик. Эта команда ничего не отправляет.",
+    "RECONCILIATION_REQUIRES_UNKNOWN_SUBMITTED": "Ручная запись исхода разрешена только для UNKNOWN_RESULT с уже сохранённой попыткой отправки. Публикация не повторялась.",
+    "WHATSAPP_REFUSAL_NOT_CONFIGURED": "Найдено предложение WhatsApp, но отказ не откалиброван. Сохраните hierarchy.xml этого окна; повторно Reel не отправляйте.",
+    "WHATSAPP_PROMPT_NOT_DISMISSED": "WhatsApp-предложение не закрылось после одного отказа. Повторных нажатий не было; проверьте телефон и сохранённый снимок.",
+    "UNEXPECTED_OPTIONAL_DIALOG": "Окно или кнопка отказа не соответствует предложению WhatsApp. Произвольное Нет не нажимается. Нужен XML фактического окна.",
     "LEARNING_REQUIRES_NORMAL_REEL": "Контрольный запуск распознавания успеха разрешён только для нового NORMAL_REEL после DRY_RUN.",
     "SUCCESS_OBSERVATION_UNAVAILABLE": "Android не позволил очистить/прочитать канал уведомления об успехе. Ничего повторно не отправляйте; проверьте сохранённый результат и подключение UIAutomator2.",
     "INVALID_CONFIRMATION_SNAPSHOT": "В XML нет однозначного заголовка и обычной кнопки Поделиться ожидаемого окна Instagram. Профиль не изменён, нажатий не было.",

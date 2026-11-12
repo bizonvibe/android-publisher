@@ -11,6 +11,8 @@ from .selectors import resolve
 from .success import configured as success_configured
 
 LABELS = {
+    "whatsapp_share_prompt": "точный текст предложения поделиться в WhatsApp (не обычная строка кросспостинга)",
+    "whatsapp_share_decline": "Нет / Не сейчас именно в этом предложении WhatsApp; не кнопка отправки",
     "profile_tab": "вкладка вашего профиля",
     "account_username": "username активного аккаунта (не отображаемое имя)",
     "reel": "выбор Reels в меню импорта (не финальная кнопка Share)",

@@ -109,6 +109,8 @@ class Android:
     def wait(self, name, seconds=15):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
+            if name == "publication_success":
+                self.dismiss_whatsapp_prompt()
             obj = self.selector(name, required=False)
             if obj is not None:
                 return obj
@@ -306,12 +308,14 @@ class Android:
         )
 
     def submit(self, prepared):
+        self.whatsapp_declined = False
         self.start_success_probe()
         if prepared["final_action"] == "publish_next":
             # Worker has already persisted the barrier: even Next may submit on some versions.
             self.tap_final(prepared)
             deadline = time.monotonic() + 60
             while True:
+                self.dismiss_whatsapp_prompt()
                 if self.success_seen():
                     break  # This version submitted directly: never press anything again.
                 if self.selector("publication_confirmation", required=False) is not None:
@@ -333,6 +337,53 @@ class Android:
             "success_evidence": getattr(self, "observed_success", None),
             "permalink": canonical_permalink(permalink),
         }
+
+    def dismiss_whatsapp_prompt(self, timeout=5):
+        selectors = getattr(self, "profile", {}).get("selectors", {})
+        if not selectors.get("whatsapp_share_prompt"):
+            return False
+        marker = self.selector("whatsapp_share_prompt", required=False)
+        if marker is None:
+            return False
+        if not selectors.get("whatsapp_share_decline"):
+            raise Stop("WHATSAPP_REFUSAL_NOT_CONFIGURED")
+        info = marker.info
+        message = " ".join(
+            str(value) for value in (info.get("text", ""), info.get("contentDescription", ""))
+        ).casefold()
+        if "whatsapp" not in message or not any(
+            word in message
+            for word in ("поделиться", "поделитесь", "делиться", "делитесь", "share")
+        ):
+            raise Stop("UNEXPECTED_OPTIONAL_DIALOG")
+        if getattr(self, "whatsapp_declined", False):
+            raise Stop("WHATSAPP_PROMPT_NOT_DISMISSED")
+        decline = self.selector("whatsapp_share_decline")
+        info = decline.info
+        label = str(info.get("text", "") or info.get("contentDescription", "")).strip().casefold()
+        if info.get("checkable") or label not in {
+            "нет",
+            "не сейчас",
+            "не делиться",
+            "нет, спасибо",
+            "пропустить",
+            "no",
+            "not now",
+            "no thanks",
+            "no, thanks",
+            "skip",
+        }:
+            raise Stop("UNEXPECTED_OPTIONAL_DIALOG")
+        self.checkpoint("before-whatsapp-refusal")
+        self.whatsapp_declined = True
+        self.tap_once(decline)  # One refusal, never a share/forward button or generic Back.
+        deadline = time.monotonic() + timeout
+        while self.selector("whatsapp_share_prompt", required=False) is not None:
+            if time.monotonic() >= deadline:
+                raise Stop("WHATSAPP_PROMPT_NOT_DISMISSED")
+            time.sleep(0.2)
+        self.checkpoint("whatsapp-declined")
+        return True
 
     def start_success_probe(self):
         profile = getattr(self, "profile", {})
@@ -390,7 +441,10 @@ class Android:
             self.observed_success = {"kind": "configured-selector"}
             return
         deadline = time.monotonic() + seconds
-        while not self.success_seen():
+        while True:
+            self.dismiss_whatsapp_prompt()
+            if self.success_seen():
+                break
             if time.monotonic() >= deadline:
                 raise Stop("UNVERIFIED_RESULT")
             time.sleep(0.3)
